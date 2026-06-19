@@ -1,5 +1,5 @@
 (() => {
-  const TAG = "[ChatPulse MAIN v5]";
+  const TAG = "[ChatPulse MAIN v6]";
   const CUSTOM_EVENT = "chatpulse:msg";
 
   const OrigWebSocket = window.WebSocket;
@@ -46,19 +46,34 @@
     origAddEventListener.call(this, type, listener, options);
   };
 
+  const origOnMessage = Object.getOwnPropertyDescriptor(OrigWebSocket.prototype, "onmessage");
+
+  Object.defineProperty(OrigWebSocket.prototype, "onmessage", {
+    get() {
+      return origOnMessage?.get?.call(this) ?? null;
+    },
+    set(handler: ((ev: MessageEvent) => void) | null) {
+      if (origOnMessage?.set) {
+        if (handler) {
+          origOnMessage.set.call(this, function (this: WebSocket, ev: MessageEvent) {
+            hookMessageEvent(ev);
+            handler.call(this, ev);
+          });
+        } else {
+          origOnMessage.set.call(this, null);
+        }
+      }
+    },
+    configurable: true,
+  });
+
   class ChatPulseWebSocket extends OrigWebSocket {
     constructor(url: string | URL, protocols?: string | string[]) {
       super(url, protocols);
 
       const urlStr = typeof url === "string" ? url : url.toString();
-
       if (urlStr.includes("irc-ws.chat.twitch.tv")) {
         console.log(TAG, "Twitch IRC WebSocket detected:", urlStr);
-
-        this.addEventListener("message", (ev: Event) => {
-          console.log(TAG, "Twitch IRC message received");
-          hookMessageEvent(ev);
-        });
       }
     }
   }
@@ -71,5 +86,5 @@
     configurable: true,
   });
 
-  console.log(TAG, "Interceptor installed (constructor + addEventListener)");
+  console.log(TAG, "Interceptor installed (constructor + addEventListener + onmessage)");
 })();

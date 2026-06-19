@@ -41,14 +41,16 @@ export async function addMessages(messages: UnifiedChatMessage[]): Promise<void>
 
   console.log("[ChatPulse STORAGE] addMessages:", messages.length, "added, total:", count);
   if (count > MAX_BUFFER_SIZE) {
-    const readTx = db.transaction("messages", "readonly");
-    const allKeys = await readTx.objectStore("messages").getAllKeys();
-    await readTx.done;
-    const toDelete = allKeys.slice(0, count - MAX_BUFFER_SIZE);
-    console.log("[ChatPulse STORAGE] Pruning", toDelete.length, "old messages");
+    const toDelete = count - MAX_BUFFER_SIZE;
+    console.log("[ChatPulse STORAGE] Pruning", toDelete, "old messages via cursor");
     const deleteTx = db.transaction("messages", "readwrite");
-    for (const key of toDelete) {
-      await deleteTx.objectStore("messages").delete(key);
+    const deleteStore = deleteTx.objectStore("messages");
+    let cursor = await deleteStore.openCursor();
+    let deleted = 0;
+    while (cursor && deleted < toDelete) {
+      await cursor.delete();
+      deleted++;
+      cursor = await cursor.continue();
     }
     await deleteTx.done;
   }
@@ -84,15 +86,18 @@ export async function saveHistory(entry: AnalysisHistory): Promise<void> {
   const db = await getDB();
   await db.put("history", entry);
 
-  const all = await db.getAll("history");
-  if (all.length > 50) {
-    const sorted = all.sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    const toDelete = sorted.slice(0, all.length - 50);
+  const count = await db.count("history");
+  if (count > 50) {
+    const toPrune = count - 50;
+    console.log("[ChatPulse STORAGE] Pruning", toPrune, "old history entries via cursor");
     const tx = db.transaction("history", "readwrite");
-    for (const item of toDelete) {
-      await tx.objectStore("history").delete(item.id);
+    const store = tx.objectStore("history");
+    let cursor = await store.openCursor();
+    let deleted = 0;
+    while (cursor && deleted < toPrune) {
+      await cursor.delete();
+      deleted++;
+      cursor = await cursor.continue();
     }
     await tx.done;
   }
@@ -106,6 +111,11 @@ export async function getHistory(): Promise<AnalysisHistory[]> {
   );
 }
 
+export async function getHistoryEntry(id: string): Promise<AnalysisHistory | null> {
+  const db = await getDB();
+  return (await db.get("history", id)) ?? null;
+}
+
 export async function deleteHistoryEntry(id: string): Promise<void> {
   const db = await getDB();
   await db.delete("history", id);
@@ -117,10 +127,14 @@ export async function updateHistoryEntry(entry: AnalysisHistory): Promise<void> 
 }
 
 export function getSettings(): Promise<UserSettings> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get(
       ["apiKey", "reportLanguage", "maxTopics", "topic", "consentGiven"],
       (result) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
         const settings = {
           apiKey: result.apiKey || "",
           reportLanguage: result.reportLanguage || "auto-detect",
@@ -137,8 +151,14 @@ export function getSettings(): Promise<UserSettings> {
 
 export function saveSettings(settings: Partial<UserSettings>): Promise<void> {
   console.log("[ChatPulse STORAGE] saveSettings:", Object.keys(settings));
-  return new Promise((resolve) => {
-    chrome.storage.local.set(settings, resolve);
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(settings, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
   });
 }
 

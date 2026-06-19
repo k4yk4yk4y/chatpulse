@@ -123,7 +123,7 @@ Respond ONLY with a valid JSON object matching this schema. No markdown, no expl
     {
       "priority": "Critical | High | Medium | Low",
       "related_topic_rank": "number (rank of the related topic from top_topics, or 0 for general recommendations)",
-      "problem_explanation": "string (2-3 sentences explaining what the underlying problem is that this recommendation addresses, in more detail than the topic title)",
+      "audience": "string (2-3 sentences explaining what the underlying problem is that this recommendation addresses, in more detail than the topic title)",
       "action": "string (specific, actionable, max 200 chars)",
       "expected_impact": "string (1 sentence)"
     }

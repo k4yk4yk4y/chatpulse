@@ -4,9 +4,11 @@ import type { AnalysisHistory, ChatPulseReport } from "../../shared/types";
 
 interface HistoryProps {
   onSelectReport: (report: ChatPulseReport) => void;
+  onRetryAnalysis: (historyId: string) => void;
+  retryingId: string | null;
 }
 
-export function History({ onSelectReport }: HistoryProps) {
+export function History({ onSelectReport, onRetryAnalysis, retryingId }: HistoryProps) {
   const [entries, setEntries] = useState<AnalysisHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,7 +82,7 @@ export function History({ onSelectReport }: HistoryProps) {
                   {entry.status === "pending" && (
                     <span className="text-amber-600 font-medium">· In progress</span>
                   )}
-                  {entry.status === "failed" && (
+                {(entry.status === "failed" || entry.status === "pending") && (
                     <span className="text-red-600 font-medium">· Failed</span>
                   )}
                 </div>
@@ -92,6 +94,15 @@ export function History({ onSelectReport }: HistoryProps) {
                     className="px-2 py-1 text-xs text-brand-600 hover:bg-brand-50 rounded"
                   >
                     View
+                  </button>
+                )}
+                {entry.status === "failed" && (
+                  <button
+                    onClick={() => onRetryAnalysis(entry.id)}
+                    disabled={retryingId === entry.id}
+                    className="px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded disabled:opacity-50"
+                  >
+                    {retryingId === entry.id ? "Retrying..." : "Retry"}
                   </button>
                 )}
                 <button

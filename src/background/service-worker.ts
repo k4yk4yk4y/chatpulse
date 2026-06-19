@@ -6,6 +6,7 @@ import {
   getSettings,
   saveHistory,
   updateHistoryEntry,
+  getHistoryEntry,
 } from "../shared/storage";
 import { analyzeChat } from "../engine/openrouter";
 import { restoreState, persistCollectingState, startKeepAlive, stopKeepAlive, KEEP_ALIVE_ALARM } from "./sw-state";
@@ -125,6 +126,24 @@ chrome.runtime.onMessage.addListener(
         break;
       }
 
+      case "RETRY_ANALYSIS": {
+        const { historyId } = msg.payload as { historyId: string };
+        console.log("[ChatPulse SW] RETRY_ANALYSIS request for:", historyId);
+        handleRetryAnalysis(historyId)
+          .then((result) => {
+            console.log("[ChatPulse SW] RETRY_ANALYSIS result:", result.report ? "success" : result.error);
+            sendResponse(result);
+          })
+          .catch((error) => {
+            console.error("[ChatPulse SW] RETRY_ANALYSIS error:", error);
+            sendResponse({
+              report: null,
+              error: error instanceof Error ? error.message : "Retry failed",
+            });
+          });
+        return true;
+      }
+
       case "EXPORT_RAW": {
         console.log("[ChatPulse SW] EXPORT_RAW request:", msg.payload);
         handleRawExport(msg.payload as { startTime: number; endTime: number })
@@ -163,6 +182,8 @@ async function handleAnalysis(payload: {
     messageCount: messages.length,
     report: null,
     status: "pending",
+    startTime: payload.startTime,
+    endTime: payload.endTime,
   });
   console.log("[ChatPulse SW] Pending history entry saved:", historyId);
 
@@ -179,6 +200,61 @@ async function handleAnalysis(payload: {
     status: result.report ? "completed" : "failed",
   });
   console.log("[ChatPulse SW] History entry updated:", result.report ? "completed" : "failed");
+
+  return result;
+}
+
+async function handleRetryAnalysis(historyId: string): Promise<{
+  report: ChatPulseReport | null;
+  error?: string;
+}> {
+  const entry = await getHistoryEntry(historyId);
+  if (!entry) {
+    return { report: null, error: "History entry not found." };
+  }
+
+  if (entry.status !== "failed" && entry.status !== "pending") {
+    return { report: null, error: "Only failed or pending analyses can be retried." };
+  }
+
+  const startTime = entry.startTime ?? 0;
+  const endTime = entry.endTime ?? Date.now();
+
+  const settings = await getSettings();
+  const messages = await getMessagesInRange(startTime, endTime);
+
+  if (messages.length === 0) {
+    await updateHistoryEntry({ ...entry, status: "failed" });
+    return {
+      report: null,
+      error: "No messages found for this time range. They may have been cleared from the buffer.",
+    };
+  }
+
+  const retriedMetadata: StreamMetadata = {
+    title: entry.streamTitle,
+    category: "Just Chatting",
+    platform: "twitch",
+    viewerCountApprox: 0,
+    durationMonitored: 0,
+  };
+
+  const result = await analyzeChat(
+    settings.apiKey,
+    retriedMetadata,
+    messages,
+    settings.reportLanguage,
+    settings.maxTopics,
+    settings.topic
+  );
+
+  await updateHistoryEntry({
+    ...entry,
+    report: result.report,
+    status: result.report ? "completed" : "failed",
+    messageCount: messages.length,
+    timestamp: new Date().toISOString(),
+  });
 
   return result;
 }
@@ -214,6 +290,10 @@ function broadcastToPopup(message: { type: string; payload: unknown }): void {
 }
 
 chrome.action.onClicked.addListener((tab) => {
+  const manifest = chrome.runtime.getManifest();
+  if (manifest.action?.default_popup) {
+    return;
+  }
   const tabUrl = tab?.url || "";
   chrome.windows.create({
     url: chrome.runtime.getURL(`src/popup/index.html?url=${encodeURIComponent(tabUrl)}`),

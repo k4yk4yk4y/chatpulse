@@ -186,18 +186,52 @@ export function extractJSON(text: string): unknown | null {
   }
 
   const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      const parsed = JSON.parse(text.slice(firstBrace, lastBrace + 1));
-      console.log("[ChatPulse PARSER] Extracted JSON from raw braces");
-      return parsed;
-    } catch {
-      console.warn("[ChatPulse PARSER] Failed to parse JSON from raw braces");
-      return null;
+  if (firstBrace === -1) {
+    console.warn("[ChatPulse PARSER] No JSON found in response");
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let endIdx = -1;
+
+  for (let i = firstBrace; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        endIdx = i;
+        break;
+      }
     }
   }
 
-  console.warn("[ChatPulse PARSER] No JSON found in response");
-  return null;
+  if (endIdx === -1) {
+    console.warn("[ChatPulse PARSER] Unbalanced braces in response");
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text.slice(firstBrace, endIdx + 1));
+    console.log("[ChatPulse PARSER] Extracted JSON via brace balancing");
+    return parsed;
+  } catch {
+    console.warn("[ChatPulse PARSER] Failed to parse balanced JSON");
+    return null;
+  }
 }

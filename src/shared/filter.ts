@@ -29,8 +29,11 @@ function isBotMessage(username: string, message: string): boolean {
 
   if (message.length < 3) return false;
 
-  const repeated = /^(.)\1{5,}/.test(message.trim());
+  const trimmed = message.trim();
+  const repeated = /^(.)\1{5,}/.test(trimmed);
   if (repeated) return true;
+
+  if (/^![a-z]+(\s|$)/i.test(trimmed)) return true;
 
   return false;
 }

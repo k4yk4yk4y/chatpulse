@@ -88,6 +88,8 @@ export interface AnalysisHistory {
   messageCount: number;
   report: ChatPulseReport | null;
   status: "completed" | "pending" | "failed";
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface UserSettings {
@@ -99,6 +101,6 @@ export interface UserSettings {
 }
 
 export interface PortMessage {
-  type: "CHAT_MESSAGE" | "START_COLLECTION" | "STOP_COLLECTION" | "ANALYZE" | "ANALYSIS_RESULT" | "MESSAGE_COUNT" | "ERROR" | "RAW_EXPORT";
+  type: "CHAT_MESSAGE" | "START_COLLECTION" | "STOP_COLLECTION" | "ANALYZE" | "ANALYSIS_RESULT" | "MESSAGE_COUNT" | "ERROR" | "RAW_EXPORT" | "RETRY_ANALYSIS";
   payload: unknown;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ConsentScreen } from "./components/ConsentScreen";
 import { StreamInput } from "./components/StreamInput";
 import { TimeRangeSelector } from "./components/TimeRangeSelector";
@@ -27,6 +27,7 @@ export function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawCsv, setRawCsv] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
     console.log("[ChatPulse POPUP] Initializing, loading settings...");
@@ -57,13 +58,26 @@ export function App() {
 
     console.log("[ChatPulse POPUP] Message count polling started");
 
-    const interval = setInterval(() => {
+    let pollInterval = 2000;
+    let consecutiveErrors = 0;
+
+    const poll = () => {
       chrome.runtime.sendMessage({ type: "GET_MESSAGE_COUNT" }, (response: { count?: number }) => {
-        if (response?.count !== undefined) {
+        if (chrome.runtime.lastError || response?.count === undefined) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= 3) {
+            pollInterval = Math.min(pollInterval * 2, 10_000);
+          }
+        } else {
+          consecutiveErrors = 0;
+          pollInterval = 2000;
           setMessageCount(response.count);
         }
       });
-    }, 500);
+    };
+
+    poll();
+    const interval = setInterval(poll, pollInterval);
 
     return () => {
       console.log("[ChatPulse POPUP] Message count polling stopped");
@@ -152,6 +166,9 @@ export function App() {
     );
   }, [startTime, messageCount, handleStopCollection]);
 
+  const handleAnalyzeRef = useRef(handleAnalyze);
+  handleAnalyzeRef.current = handleAnalyze;
+
   useEffect(() => {
     if (!collecting || endTime === 0) {
       setRemainingSeconds(0);
@@ -163,14 +180,14 @@ export function App() {
       setRemainingSeconds(left);
       if (left <= 0) {
         handleStopCollection();
-        handleAnalyze();
+        handleAnalyzeRef.current();
       }
     };
 
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [collecting, endTime, handleStopCollection, handleAnalyze]);
+  }, [collecting, endTime, handleStopCollection]);
 
   const handleRawExport = useCallback(() => {
     console.log("[ChatPulse POPUP] Requesting raw export, startTime:", startTime);
@@ -187,6 +204,31 @@ export function App() {
       }
     );
   }, [startTime]);
+
+  const handleRetryAnalysis = useCallback((historyId: string) => {
+    console.log("[ChatPulse POPUP] Retrying analysis for:", historyId);
+    setRetryingId(historyId);
+    setError(null);
+    setReport(null);
+
+    chrome.runtime.sendMessage(
+      {
+        type: "RETRY_ANALYSIS",
+        payload: { historyId },
+      },
+      (response: { report?: ChatPulseReport; error?: string }) => {
+        console.log("[ChatPulse POPUP] RETRY_ANALYSIS response:", response?.error ? "error: " + response.error : "report received");
+        setRetryingId(null);
+        if (response?.error) {
+          setError(response.error);
+        }
+        if (response?.report) {
+          setReport(response.report);
+          setView("main");
+        }
+      }
+    );
+  }, []);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<UserSettings>) => {
     await saveSettings(newSettings);
@@ -239,6 +281,8 @@ export function App() {
               setReport(r);
               setView("main");
             }}
+            onRetryAnalysis={handleRetryAnalysis}
+            retryingId={retryingId}
           />
         )}
 
@@ -283,14 +327,14 @@ export function App() {
                 <>
                   <button
                     onClick={handleStopCollection}
-                    className="flex-1 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors"
+                    className="flex-1 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600"
                   >
                     Stop
                   </button>
                   <button
                     onClick={handleAnalyze}
                     disabled={analyzing || messageCount === 0}
-                    className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {analyzing ? "Analyzing..." : "Analyze"}
                   </button>

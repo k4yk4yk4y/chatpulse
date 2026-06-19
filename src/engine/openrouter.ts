@@ -16,16 +16,23 @@ interface OpenRouterResponse {
   };
 }
 
+const REQUEST_TIMEOUT_MS = 90_000;
+const RATE_LIMIT_BACKOFF_MS = 3_000;
+
 async function callOpenRouter(
   apiKey: string,
   model: string,
   systemPrompt: string,
   userPrompt: string
 ): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
     console.log("[ChatPulse ENGINE] Calling OpenRouter with model:", model);
     const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -46,7 +53,12 @@ async function callOpenRouter(
       const status = response.status;
       const body = await response.text();
       console.warn("[ChatPulse ENGINE] OpenRouter HTTP", status, response.statusText, "for model:", model, "body:", body.substring(0, 500));
-      if (status === 429 || status >= 500) {
+      if (status === 429) {
+        console.log("[ChatPulse ENGINE] Rate limited, backing off", RATE_LIMIT_BACKOFF_MS, "ms");
+        await sleep(RATE_LIMIT_BACKOFF_MS);
+        return null;
+      }
+      if (status >= 500) {
         return null;
       }
       throw new Error(`OpenRouter API error: ${status} ${response.statusText}`);
@@ -66,8 +78,14 @@ async function callOpenRouter(
     }
     return content;
   } catch (error) {
-    console.error(`[ChatPulse ENGINE] OpenRouter call failed for model ${model}:`, error);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      console.warn("[ChatPulse ENGINE] Request timed out for model:", model);
+    } else {
+      console.error(`[ChatPulse ENGINE] OpenRouter call failed for model ${model}:`, error);
+    }
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

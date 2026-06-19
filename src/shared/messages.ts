@@ -10,6 +10,8 @@ interface TwitchIRCMessage {
   bits: number;
 }
 
+let msgIdCounter = 0;
+
 const BADGE_MAP: Record<string, string> = {
   broadcaster: "broadcaster",
   mod: "moderator",
@@ -84,7 +86,7 @@ export function parseTwitchIRC(rawFrame: string): TwitchIRCMessage | null {
     return null;
   }
 
-  const id = tags["msg-id"] || tags["id"] || `${username}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = tags["msg-id"] || tags["id"] || `${username}-${Date.now()}-${++msgIdCounter}`;
   console.log("[ChatPulse IRC] Parsed message from", username, "(id:", id, ")");
   return {
     id,
