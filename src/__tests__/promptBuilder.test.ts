@@ -15,14 +15,14 @@ describe("buildSystemPrompt", () => {
 
   it("includes few-shot examples when requested", () => {
     const prompt = buildSystemPrompt("en", true);
-    expect(prompt).toContain("EXAMPLE 1");
-    expect(prompt).toContain("EXAMPLE 2");
+    expect(prompt).toContain("FULL OUTPUT EXAMPLE");
+    expect(prompt).toContain("ENUM VALUES");
   });
 
   it("excludes few-shot examples by default", () => {
     const prompt = buildSystemPrompt("en", false);
-    expect(prompt).not.toContain("EXAMPLE 1");
-    expect(prompt).not.toContain("EXAMPLE 2");
+    expect(prompt).not.toContain("FULL OUTPUT EXAMPLE");
+    expect(prompt).not.toContain("ENUM VALUES");
   });
 
   it("includes JSON output schema", () => {

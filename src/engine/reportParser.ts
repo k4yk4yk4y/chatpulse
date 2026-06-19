@@ -6,78 +6,114 @@ const coerceNum = z.union([z.number(), z.string()]).transform((v) => {
   return Number.isFinite(n) ? n : 0;
 });
 
+const clampNum = (min: number, max: number) =>
+  z.union([z.number(), z.string()]).transform((v) => {
+    const n = typeof v === "string" ? parseFloat(v) : v;
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : min;
+  });
+
+const lenientEnum = <T extends readonly string[]>(values: T) =>
+  z
+    .union([z.string(), z.number()])
+    .transform((v) => {
+      const s = String(v).trim();
+      const lower = s.toLowerCase();
+      for (const valid of values) {
+        if (valid.toLowerCase() === lower) return valid;
+      }
+      if (lower === "bug") return "Bug Report" as T[number];
+      if (lower === "very negative") return "Very Negative" as T[number];
+      if (lower === "very positive") return "Very Positive" as T[number];
+      return values[0];
+    });
+
+const CATEGORIES = ["Complaint", "Question", "Suggestion", "Praise", "Bug Report", "Comparison", "Other"] as const;
+const SENTIMENTS = ["Negative", "Neutral", "Positive"] as const;
+const SEVERITIES = ["Critical", "High", "Medium", "Low"] as const;
+const OVERALL_SENTIMENTS = ["Very Negative", "Negative", "Neutral", "Positive", "Very Positive"] as const;
+const BRAND_CONTEXTS = ["Positive", "Negative", "Neutral", "Question"] as const;
+const SEGMENT_SIZES = ["Small", "Medium", "Large"] as const;
+
 const SampleMessageSchema = z.object({
-  username: z.string(),
-  message: z.string(),
-  timestamp: z.string(),
+  username: z.string().default("unknown"),
+  message: z.string().default(""),
+  timestamp: z.string().default(() => new Date().toISOString()),
 });
 
 const TopicSchema = z.object({
-  rank: coerceNum,
-  topic_title: z.string(),
-  category: z.enum(["Complaint", "Question", "Suggestion", "Praise", "Bug Report", "Comparison", "Other"]),
-  frequency: coerceNum,
-  sentiment: z.enum(["Negative", "Neutral", "Positive"]),
-  severity: z.enum(["Critical", "High", "Medium", "Low"]),
-  key_usernames: z.array(z.string()),
-  evidence_quotes: z.array(z.string()),
-  detailed_description: z.string(),
-  related_topics: z.array(z.string()).optional().default([]),
-  sample_messages: z.array(SampleMessageSchema).optional().default([]),
+  rank: coerceNum.default(0),
+  topic_title: z.string().default("Untitled topic"),
+  category: lenientEnum(CATEGORIES).default("Other"),
+  frequency: coerceNum.default(1),
+  sentiment: lenientEnum(SENTIMENTS).default("Neutral"),
+  severity: lenientEnum(SEVERITIES).default("Medium"),
+  key_usernames: z.array(z.string()).default([]),
+  evidence_quotes: z.array(z.string()).default([]),
+  detailed_description: z.string().default(""),
+  related_topics: z.array(z.string()).default([]),
+  sample_messages: z.array(SampleMessageSchema).default([]),
 });
 
 const ReportSchema = z.object({
   report_meta: z.object({
-    generated_at: z.string(),
-    messages_analyzed: coerceNum,
-    messages_substantive: coerceNum,
-    dominant_language: z.string(),
-    confidence_score: coerceNum,
+    generated_at: z.string().default(() => new Date().toISOString()),
+    messages_analyzed: coerceNum.default(0),
+    messages_substantive: coerceNum.default(0),
+    dominant_language: z.string().default("en"),
+    confidence_score: clampNum(0, 100).default(50),
   }),
   overall_sentiment: z.object({
-    score: coerceNum,
-    label: z.enum(["Very Negative", "Negative", "Neutral", "Positive", "Very Positive"]),
-    summary: z.string(),
+    score: clampNum(-100, 100).default(0),
+    label: lenientEnum(OVERALL_SENTIMENTS).default("Neutral"),
+    summary: z.string().default("No summary available."),
   }),
   engagement_quality: z.object({
-    score: coerceNum,
-    active_chatters_ratio: coerceNum,
-    substantive_ratio: coerceNum,
-    top_contributors: z.array(
-      z.object({
-        username: z.string(),
-        message_count: coerceNum,
-        influence_score: coerceNum,
-      })
-    ),
+    score: clampNum(0, 100).default(50),
+    active_chatters_ratio: clampNum(0, 1).default(0.5),
+    substantive_ratio: clampNum(0, 1).default(0.5),
+    top_contributors: z
+      .array(
+        z.object({
+          username: z.string().default("unknown"),
+          message_count: coerceNum.default(0),
+          influence_score: clampNum(0, 100).default(50),
+        })
+      )
+      .default([]),
   }),
-  top_topics: z.array(TopicSchema),
-  brand_mentions: z.array(
-    z.object({
-      brand_name: z.string(),
-      context: z.enum(["Positive", "Negative", "Neutral", "Question"]),
-      mentions_count: coerceNum,
-      key_usernames: z.array(z.string()),
-      sample_quotes: z.array(z.string()),
-    })
-  ),
-  audience_segments: z.array(
-    z.object({
-      segment_name: z.string(),
-      estimated_size: z.enum(["Small", "Medium", "Large"]),
-      characteristics: z.string(),
-      key_usernames: z.array(z.string()),
-    })
-  ),
-  recommendations: z.array(
-    z.object({
-      priority: z.enum(["Critical", "High", "Medium", "Low"]),
-      audience: z.string(),
-      action: z.string(),
-      expected_impact: z.string(),
-      related_topic_rank: coerceNum.optional().default(0),
-    })
-  ),
+  top_topics: z.array(TopicSchema).default([]),
+  brand_mentions: z
+    .array(
+      z.object({
+        brand_name: z.string().default("Unknown"),
+        context: lenientEnum(BRAND_CONTEXTS).default("Neutral"),
+        mentions_count: coerceNum.default(0),
+        key_usernames: z.array(z.string()).default([]),
+        sample_quotes: z.array(z.string()).default([]),
+      })
+    )
+    .default([]),
+  audience_segments: z
+    .array(
+      z.object({
+        segment_name: z.string().default("General audience"),
+        estimated_size: lenientEnum(SEGMENT_SIZES).default("Medium"),
+        characteristics: z.string().default(""),
+        key_usernames: z.array(z.string()).default([]),
+      })
+    )
+    .default([]),
+  recommendations: z
+    .array(
+      z.object({
+        priority: lenientEnum(SEVERITIES).default("Medium"),
+        audience: z.string().default("General"),
+        action: z.string().default(""),
+        expected_impact: z.string().default(""),
+        related_topic_rank: coerceNum.default(0),
+      })
+    )
+    .default([]),
 });
 
 export type RawReport = z.infer<typeof ReportSchema>;
@@ -93,7 +129,7 @@ function toCamelCase(raw: RawReport): ChatPulseReport {
     },
     overallSentiment: {
       score: raw.overall_sentiment.score,
-      label: raw.overall_sentiment.label,
+      label: raw.overall_sentiment.label as ChatPulseReport["overallSentiment"]["label"],
       summary: raw.overall_sentiment.summary,
     },
     engagementQuality: {
@@ -112,10 +148,10 @@ function toCamelCase(raw: RawReport): ChatPulseReport {
       .map((t, i) => ({
         rank: i + 1,
         topicTitle: t.topic_title,
-        category: t.category,
+        category: t.category as ChatPulseReport["topTopics"][number]["category"],
         frequency: t.frequency,
-        sentiment: t.sentiment,
-        severity: t.severity,
+        sentiment: t.sentiment as ChatPulseReport["topTopics"][number]["sentiment"],
+        severity: t.severity as ChatPulseReport["topTopics"][number]["severity"],
         keyUsernames: t.key_usernames,
         evidenceQuotes: t.evidence_quotes,
         detailedDescription: t.detailed_description,
@@ -131,19 +167,19 @@ function toCamelCase(raw: RawReport): ChatPulseReport {
       })),
     brandMentions: raw.brand_mentions.map((b) => ({
       brandName: b.brand_name,
-      context: b.context,
+      context: b.context as ChatPulseReport["brandMentions"][number]["context"],
       mentionsCount: b.mentions_count,
       keyUsernames: b.key_usernames,
       sampleQuotes: b.sample_quotes,
     })),
     audienceSegments: raw.audience_segments.map((s) => ({
       segmentName: s.segment_name,
-      estimatedSize: s.estimated_size,
+      estimatedSize: s.estimated_size as ChatPulseReport["audienceSegments"][number]["estimatedSize"],
       characteristics: s.characteristics,
       keyUsernames: s.key_usernames,
     })),
     recommendations: raw.recommendations.map((r) => ({
-      priority: r.priority,
+      priority: r.priority as ChatPulseReport["recommendations"][number]["priority"],
       audience: r.audience,
       action: r.action,
       expectedImpact: r.expected_impact,
@@ -173,7 +209,16 @@ export function validateAndParseReport(
 
 export function extractJSON(text: string): unknown | null {
   console.log("[ChatPulse PARSER] extractJSON, input length:", text.length);
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
+
+  let cleanText = text;
+
+  const thinkMatch = text.match(/<think>[\s\S]*?<\/think>/);
+  if (thinkMatch) {
+    cleanText = text.slice(thinkMatch.index! + thinkMatch[0].length).trim();
+    console.log("[ChatPulse PARSER] Stripped <think> block");
+  }
+
+  const jsonMatch = cleanText.match(/```json\s*([\s\S]*?)```/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[1].trim());
@@ -181,11 +226,10 @@ export function extractJSON(text: string): unknown | null {
       return parsed;
     } catch {
       console.warn("[ChatPulse PARSER] Failed to parse JSON from code block");
-      return null;
     }
   }
 
-  const firstBrace = text.indexOf("{");
+  const firstBrace = cleanText.indexOf("{");
   if (firstBrace === -1) {
     console.warn("[ChatPulse PARSER] No JSON found in response");
     return null;
@@ -196,8 +240,8 @@ export function extractJSON(text: string): unknown | null {
   let escape = false;
   let endIdx = -1;
 
-  for (let i = firstBrace; i < text.length; i++) {
-    const ch = text[i];
+  for (let i = firstBrace; i < cleanText.length; i++) {
+    const ch = cleanText[i];
     if (escape) {
       escape = false;
       continue;
@@ -226,8 +270,16 @@ export function extractJSON(text: string): unknown | null {
     return null;
   }
 
+  let jsonStr = cleanText.slice(firstBrace, endIdx + 1);
+
+  jsonStr = jsonStr.replace(/,\s*([\]}])/g, "$1");
+  jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+    if (ch === "\n" || ch === "\r" || ch === "\t") return ch;
+    return "";
+  });
+
   try {
-    const parsed = JSON.parse(text.slice(firstBrace, endIdx + 1));
+    const parsed = JSON.parse(jsonStr);
     console.log("[ChatPulse PARSER] Extracted JSON via brace balancing");
     return parsed;
   } catch {

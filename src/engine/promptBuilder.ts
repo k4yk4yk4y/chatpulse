@@ -1,25 +1,83 @@
 import type { StreamMetadata } from "../shared/types";
 
 const FEW_SHOT_EXAMPLES = `
-## EXAMPLE 1 — SUBSTANTIVE CHAT (Tech Product Launch)
-Input messages include:
-- "@techgamer: The new mouse has insane latency, way better than Logitech G Pro"
-- "@newbie123: How do I enable the RGB sync? Can't find it in settings"
-- "@saltyvet: They nerfed the DPI again, third patch in a row, unplayable"
+## FULL OUTPUT EXAMPLE
+{
+  "report_meta": {
+    "generated_at": "2025-01-15T14:30:00Z",
+    "messages_analyzed": 523,
+    "messages_substantive": 87,
+    "dominant_language": "en",
+    "confidence_score": 78
+  },
+  "overall_sentiment": {
+    "score": -15,
+    "label": "Negative",
+    "summary": "Chat is dominated by frustration about recent changes, with a vocal minority defending the update."
+  },
+  "engagement_quality": {
+    "score": 62,
+    "active_chatters_ratio": 0.34,
+    "substantive_ratio": 0.17,
+    "top_contributors": [
+      {"username": "techgamer42", "message_count": 12, "influence_score": 85},
+      {"username": "newbie123", "message_count": 8, "influence_score": 60}
+    ]
+  },
+  "top_topics": [
+    {
+      "rank": 1,
+      "topic_title": "Mouse latency performance vs competitors",
+      "category": "Praise",
+      "frequency": 34,
+      "sentiment": "Positive",
+      "severity": "Low",
+      "key_usernames": ["techgamer42", "prouser99"],
+      "evidence_quotes": ["The new mouse has insane latency, way better than Logitech G Pro"],
+      "detailed_description": "Users praise the mouse latency as significantly better than competing products. Multiple comparisons to Logitech G Pro specifically.",
+      "related_topics": [],
+      "sample_messages": [
+        {"username": "techgamer42", "message": "The new mouse has insane latency, way better than Logitech G Pro", "timestamp": "2025-01-15T14:22:00Z"}
+      ]
+    }
+  ],
+  "brand_mentions": [
+    {
+      "brand_name": "Logitech",
+      "context": "Negative",
+      "mentions_count": 5,
+      "key_usernames": ["techgamer42"],
+      "sample_quotes": ["way better than Logitech G Pro"]
+    }
+  ],
+  "audience_segments": [
+    {
+      "segment_name": "Tech enthusiasts comparing hardware",
+      "estimated_size": "Medium",
+      "characteristics": "Knowledgeable users who compare products across brands",
+      "key_usernames": ["techgamer42", "prouser99"]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "Medium",
+      "related_topic_rank": 1,
+      "audience": "Users comparing mouse latency with competitors",
+      "action": "Create a side-by-side latency comparison chart highlighting advantages",
+      "expected_impact": "Reinforces positive perception and drives word-of-mouth"
+    }
+  ]
+}
 
-Expected output topics:
-1. "Mouse latency performance vs competitors" (Praise, Positive)
-2. "RGB sync setup confusion" (Question, Medium severity)
-3. "DPI nerf frustration" (Complaint, High severity)
-
-## EXAMPLE 2 — NOISE-HEAVY CHAT (Entertainment Stream)
-Input messages: 90% "Pog", "LUL", "haha", "nice shot"
-Plus: "@viewer42: The audio is desynced by like 2 seconds since 15 min ago"
-
-Expected output:
-- Only 1 topic: "Audio desync issue" (Bug Report, Critical)
-- Engagement quality score low due to high noise ratio
-- Recommendation: "Check OBS audio offset settings immediately"
+## ENUM VALUES — USE EXACTLY THESE STRINGS
+- category: "Complaint" | "Question" | "Suggestion" | "Praise" | "Bug Report" | "Comparison" | "Other"
+  - NOTE: Use "Bug Report" (two words), NOT "Bug"
+- sentiment (topics): "Negative" | "Neutral" | "Positive"
+- severity: "Critical" | "High" | "Medium" | "Low"
+- overall_sentiment.label: "Very Negative" | "Negative" | "Neutral" | "Positive" | "Very Positive"
+- brand context: "Positive" | "Negative" | "Neutral" | "Question"
+- estimated_size: "Small" | "Medium" | "Large"
+- priority: "Critical" | "High" | "Medium" | "Low"
 `;
 
 export function buildSystemPrompt(
@@ -45,9 +103,10 @@ ${topicContext}
 3. Every topic MUST be backed by specific usernames and direct message quotes as evidence.
 4. For each topic, include up to 5 \`sample_messages\` — select the longest, most substantive messages that best illustrate the topic. Skip short reactions or emote-only messages.
 5. **LANGUAGE RULE**: ${languageInstruction} If the chat is multilingual, provide the report in the requested language, but flag other languages in a \`multilingual_notes\` field.
-6. Respect \`max_topics\` parameter: generate exactly N top topics, sorted by \`frequency\` in descending order (most frequent first).
-7. Be CONCISE: no fluff, no summaries for the sake of summaries. Every sentence must carry information.
-8. Do NOT invent messages, usernames, or topics. If no substantive content exists, state so explicitly.
+  6. Respect \`max_topics\` parameter: generate exactly N top topics, sorted by \`frequency\` in descending order (most frequent first).
+  7. Be CONCISE: no fluff, no summaries for the sake of summaries. Every sentence must carry information.
+  8. Do NOT invent messages, usernames, or topics. If no substantive content exists, state so explicitly.
+  9. ENUM RULE: Use ONLY the exact enum strings listed in the schema. Do NOT abbreviate (e.g., "Bug Report" not "Bug", "Very Positive" not just "Positive").
 
 ## INPUT FORMAT
 You will receive:
@@ -88,7 +147,7 @@ Respond ONLY with a valid JSON object matching this schema. No markdown, no expl
       "category": "Complaint | Question | Suggestion | Praise | Bug Report | Comparison | Other",
       "frequency": number,
       "sentiment": "Negative | Neutral | Positive",
-      "severity": "Critical | High | Medium | Low (for complaints/bugs only)",
+      "severity": "Critical | High | Medium | Low (for complaints/bugs only, use Low for other categories)",
       "key_usernames": ["string (3-5 most relevant usernames)"],
       "evidence_quotes": ["string (2-3 exact message snippets, max 120 chars each)"],
       "detailed_description": "string (3-5 sentences: what the problem/issue IS, WHY it happens, WHO is affected, and WHAT impact it has. Be specific and descriptive. Do NOT include recommendations here.)",
