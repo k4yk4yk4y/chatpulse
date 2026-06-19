@@ -82,7 +82,7 @@ export function History({ onSelectReport, onRetryAnalysis, retryingId }: History
                   {entry.status === "pending" && (
                     <span className="text-amber-600 font-medium">· In progress</span>
                   )}
-                {(entry.status === "failed" || entry.status === "pending") && (
+                {entry.status === "failed" && (
                     <span className="text-red-600 font-medium">· Failed</span>
                   )}
                 </div>
