@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "ChatPulse",
+  "version": "0.1.0",
+  "description": "Live Stream Chat Analysis & Audience Intelligence — Twitch MVP",
+  "permissions": ["storage", "activeTab", "alarms", "windows"],
+  "host_permissions": ["*://*.twitch.tv/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.twitch.tv/*"],
+      "js": ["src/content/twitch-main.ts"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.twitch.tv/*"],
+      "js": ["src/content/twitch-isolated.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Open ChatPulse"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

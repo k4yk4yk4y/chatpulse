@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-900 antialiased;
+    width: 420px;
+    min-height: 680px;
+    max-height: 680px;
+    overflow-y: auto;
+  }
+}
+
+@layer components {
+  .skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+
+  .badge-positive {
+    @apply bg-emerald-100 text-emerald-700 border border-emerald-200;
+  }
+
+  .badge-neutral {
+    @apply bg-amber-100 text-amber-700 border border-amber-200;
+  }
+
+  .badge-negative {
+    @apply bg-red-100 text-red-700 border border-red-200;
+  }
+
+  .badge-critical {
+    @apply bg-red-600 text-white border border-red-700;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
