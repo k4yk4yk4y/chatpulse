@@ -185,6 +185,7 @@ ${topicContext}
   7. Be CONCISE: no fluff, no summaries for the sake of summaries. Every sentence must carry information.
   8. Do NOT invent messages, usernames, or topics. If no substantive content exists, state so explicitly.
   9. ENUM RULE: Use ONLY the exact enum strings listed in the schema. Do NOT abbreviate (e.g., "Bug Report" not "Bug", "Very Positive" not just "Positive").
+  10. RECOMMENDATION RULE: Generate at least 1 recommendation for EVERY topic in top_topics — no topic may be left without a recommendation. For high-severity topics (Critical/High), generate 2-4 recommendations addressing different aspects. For Medium severity, 1-2 recommendations. For Low severity, exactly 1 recommendation. Group recommendations by their related_topic_rank. General recommendations (related_topic_rank=0) are optional, only if there's a cross-cutting concern.
 
 ## INPUT FORMAT
 You will receive:
@@ -266,7 +267,6 @@ Respond ONLY with a valid JSON object matching this schema. No markdown, no expl
       "expected_impact": "string (1 sentence)"
     }
   ]
-  CRITICAL: Generate at least 1 recommendation for EVERY topic in top_topics — no topic may be left without a recommendation. For high-severity topics (Critical/High), generate 2-4 recommendations addressing different aspects. For Medium severity, 1-2 recommendations. For Low severity, exactly 1 recommendation. Group recommendations by their related_topic_rank. General recommendations (related_topic_rank=0) are optional, only if there's a cross-cutting concern. The audience field should explain WHY this action is needed — not just restate the topic title.
 }`;
 
   if (includeFewShot) {

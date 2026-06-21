@@ -128,14 +128,20 @@ export function toUnifiedChatMessage(
 // Kick Platform Chat Parser
 
 interface KickWebSocketFrame {
-  type: string;
-  data?: KickChatData;
+  type?: string;
+  event?: string;
+  data?: KickChatData | string;
 }
 
 interface KickChatData {
   id?: string;
+  chatroom_id?: number;
+  content?: string;
+  type?: string;
+  created_at?: string;
   message?: KickMessage;
   sender?: KickSender;
+  emotes?: KickEmote[];
 }
 
 interface KickMessage {
@@ -161,43 +167,52 @@ interface KickBadge {
 }
 
 /**
- * Parse Kick chat messages from WebSocket JSON frames
- * Kick uses structured JSON messages with chat_message type
+ * Parse Kick chat messages from WebSocket JSON frames.
+ * Supports both legacy format ({type:"chat_message", data:{...}}) and
+ * Pusher format ({event:"App\\Events\\ChatMessageEvent", data:"<json string>"}).
  */
 export function parseKickChat(rawFrame: string): KickChatMessage | null {
-  let parsed: KickWebSocketFrame;
+  let outer: KickWebSocketFrame;
   try {
-    parsed = JSON.parse(rawFrame);
+    outer = JSON.parse(rawFrame);
   } catch {
     console.log("[ChatPulse Kick] Invalid JSON frame, skipping");
     return null;
   }
 
-  // Check for chat message type
-  if (parsed.type !== "chat_message") {
-    return null;
+  let data: KickChatData | null = null;
+
+  const eventName = outer.event ?? outer.type ?? "";
+
+  if (eventName === "App\\Events\\ChatMessageEvent" || eventName === "chat_message") {
+    if (typeof outer.data === "string") {
+      try {
+        data = JSON.parse(outer.data);
+      } catch {
+        console.log("[ChatPulse Kick] Failed to parse inner data JSON, skipping");
+        return null;
+      }
+    } else if (typeof outer.data === "object" && outer.data !== null) {
+      data = outer.data;
+    }
   }
 
-  const data = parsed.data;
-  if (!data?.message?.text) {
+  if (!data) return null;
+
+  const content = data.content ?? data.message?.text ?? "";
+  if (!content || content.trim().length === 0) {
     return null;
   }
 
   const username = data.sender?.username?.toLowerCase() || "unknown";
   const displayName = data.sender?.displayName || username;
-  const message = data.message.text.trim();
+  const message = content.trim();
 
-  if (message.length === 0) {
-    return null;
-  }
-
-  // Extract badges from sender
   const badges: string[] = (data.sender?.badges || [])
     .map((b) => b.type || b.text || "")
     .filter((b) => b.length > 0);
 
-  // Extract emotes from message
-  const emotes: string[] = (data.message.emotes || [])
+  const emotes: string[] = (data.emotes || data.message?.emotes || [])
     .map((e) => e.id || e.name || "")
     .filter((e) => e.length > 0);
 

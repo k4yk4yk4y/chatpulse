@@ -1,8 +1,14 @@
 (() => {
-  const TAG = "[ChatPulse Kick MAIN v1]";
+  const TAG = "[ChatPulse Kick MAIN v2]";
   const CUSTOM_EVENT = "chatpulse:kick:msg";
 
   const OrigWebSocket = window.WebSocket;
+  const origAddEventListener = OrigWebSocket.prototype.addEventListener;
+
+  let msgDebugCount = 0;
+  const MSG_DEBUG_LIMIT = 20;
+  const NON_CHAT_DEBUG_LIMIT = 5;
+  const DEBUG_LOGGING = false;
 
   function emitFrame(data: string): void {
     try {
@@ -16,22 +22,55 @@
     }
   }
 
+  function dataToString(data: unknown): string | null {
+    if (typeof data === "string") return data;
+    if (data instanceof ArrayBuffer) {
+      try { return new TextDecoder().decode(data); } catch { return null; }
+    }
+    if (typeof data === "object" && data !== null && "text" in data && typeof (data as { text: () => unknown }).text === "function") {
+      try {
+        const result = (data as { text: () => unknown }).text();
+        return typeof result === "string" ? result : null;
+      } catch { return null; }
+    }
+    return null;
+  }
+
   function hookMessageEvent(ev: Event): void {
     const msgEv = ev as MessageEvent;
-    if (typeof msgEv.data === "string") {
-      try {
-        const parsed = JSON.parse(msgEv.data);
-        if (parsed.type === "chat_message") {
-          console.log(TAG, "Intercepted Kick chat_message, length:", msgEv.data.length);
-          emitFrame(msgEv.data);
-        }
-      } catch {
-        // Not JSON, skip
+    const dataStr = dataToString(msgEv.data);
+    if (dataStr === null) {
+      if (DEBUG_LOGGING) {
+        console.log(TAG, "Non-string/binary WS message, type:", typeof msgEv.data, "constructor:", msgEv.data?.constructor?.name);
+      }
+      return;
+    }
+
+    if (DEBUG_LOGGING && msgDebugCount < MSG_DEBUG_LIMIT) {
+      msgDebugCount++;
+      const preview = dataStr.length > 200 ? dataStr.slice(0, 200) + "..." : dataStr;
+      console.log(TAG, `WS msg #${msgDebugCount}, len:${dataStr.length}, preview:`, preview);
+    }
+
+    try {
+      const parsed = JSON.parse(dataStr);
+      const msgType = parsed.type ?? parsed.event ?? parsed.name ?? parsed.kind ?? "";
+      const isChatMsg = msgType === "chat_message"
+        || msgType === "ChatMessage"
+        || msgType === "message"
+        || msgType === "App\\Events\\ChatMessageEvent";
+      if (isChatMsg) {
+        console.log(TAG, "Intercepted Kick chat message, type:", msgType, "length:", dataStr.length);
+        emitFrame(dataStr);
+      } else if (DEBUG_LOGGING && msgDebugCount <= NON_CHAT_DEBUG_LIMIT) {
+        console.log(TAG, "Non-chat WS message type:", msgType || "(empty)");
+      }
+    } catch {
+      if (DEBUG_LOGGING && msgDebugCount <= 3) {
+        console.log(TAG, "Non-JSON WS message, first 100 chars:", dataStr.slice(0, 100));
       }
     }
   }
-
-  const origAddEventListener = OrigWebSocket.prototype.addEventListener;
 
   OrigWebSocket.prototype.addEventListener = function (
     this: WebSocket,

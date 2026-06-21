@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TopicCard } from "./TopicCard";
+import { PriorityBadge } from "./PriorityBadge";
 import type { ChatPulseReport } from "../../shared/types";
 
 interface ReportViewerProps {
@@ -8,6 +9,22 @@ interface ReportViewerProps {
 
 export function ReportViewer({ report }: ReportViewerProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const topicRecsMap = useMemo(() => {
+    const map = new Map<number, typeof report.recommendations>();
+    for (const rec of report.recommendations) {
+      if (rec.relatedTopicRank === 0) continue;
+      const existing = map.get(rec.relatedTopicRank) ?? [];
+      existing.push(rec);
+      map.set(rec.relatedTopicRank, existing);
+    }
+    return map;
+  }, [report.recommendations]);
+
+  const generalRecs = useMemo(
+    () => report.recommendations.filter((r) => r.relatedTopicRank === 0),
+    [report.recommendations]
+  );
 
   const sentimentColor = (score: number) => {
     if (score > 30) return "text-emerald-600";
@@ -65,7 +82,7 @@ export function ReportViewer({ report }: ReportViewerProps) {
             <TopicCard
               key={topic.rank}
               topic={topic}
-              recommendations={report.recommendations.filter((r) => r.relatedTopicRank === topic.rank)}
+              recommendations={topicRecsMap.get(topic.rank)}
             />
           ))}
         </div>
@@ -79,32 +96,18 @@ export function ReportViewer({ report }: ReportViewerProps) {
         )}
       </div>
 
-      {report.recommendations.filter((r) => r.relatedTopicRank === 0).length > 0 && (
+      {generalRecs.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">General Recommendations</h3>
           <div className="space-y-2">
-            {report.recommendations
-              .filter((r) => r.relatedTopicRank === 0)
-              .map((rec, i) => (
-                <div key={i} className="bg-blue-50 border border-blue-200 rounded p-2.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                        rec.priority === "Critical"
-                          ? "bg-red-100 text-red-700"
-                          : rec.priority === "High"
-                            ? "bg-orange-100 text-orange-700"
-                            : rec.priority === "Medium"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {rec.priority}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-gray-800">{rec.action}</p>
+            {generalRecs.map((rec) => (
+              <div key={rec.action} className="bg-blue-50 border border-blue-200 rounded p-2.5">
+                <div className="flex items-center gap-2 mb-1">
+                  <PriorityBadge priority={rec.priority} />
                 </div>
-              ))}
+                <p className="text-xs font-medium text-gray-800">{rec.action}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
