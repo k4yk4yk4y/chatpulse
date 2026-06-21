@@ -34,24 +34,27 @@ const OVERALL_SENTIMENTS = ["Very Negative", "Negative", "Neutral", "Positive", 
 const BRAND_CONTEXTS = ["Positive", "Negative", "Neutral", "Question"] as const;
 const SEGMENT_SIZES = ["Small", "Medium", "Large"] as const;
 
-const SampleMessageSchema = z.object({
-  username: z.string().default("unknown"),
-  message: z.string().default(""),
-  timestamp: z.string().default(() => new Date().toISOString()),
-});
-
 const TopicSchema = z.object({
   rank: coerceNum.default(0),
   topic_title: z.string().default("Untitled topic"),
   category: lenientEnum(CATEGORIES).default("Other"),
   frequency: coerceNum.default(1),
+  total_unique_users: coerceNum.default(0),
   sentiment: lenientEnum(SENTIMENTS).default("Neutral"),
   severity: lenientEnum(SEVERITIES).default("Medium"),
   key_usernames: z.array(z.string()).default([]),
   evidence_quotes: z.array(z.string()).default([]),
   detailed_description: z.string().default(""),
   related_topics: z.array(z.string()).default([]),
-  sample_messages: z.array(SampleMessageSchema).default([]),
+  sample_messages: z
+    .array(
+      z.object({
+        username: z.string().default("unknown"),
+        message: z.string().default(""),
+        timestamp: z.string().default(() => new Date().toISOString()),
+      })
+    )
+    .default([]),
 });
 
 const ReportSchema = z.object({
@@ -152,6 +155,7 @@ function toCamelCase(raw: RawReport): ChatPulseReport {
         frequency: t.frequency,
         sentiment: t.sentiment as ChatPulseReport["topTopics"][number]["sentiment"],
         severity: t.severity as ChatPulseReport["topTopics"][number]["severity"],
+        totalUniqueUsers: t.total_unique_users,
         keyUsernames: t.key_usernames,
         evidenceQuotes: t.evidence_quotes,
         detailedDescription: t.detailed_description,
@@ -193,7 +197,12 @@ export function validateAndParseReport(
   maxTopics: number
 ): ChatPulseReport | null {
   console.log("[ChatPulse PARSER] Validating report, maxTopics:", maxTopics);
-  const result = ReportSchema.safeParse(raw);
+
+  // Normalize snake_case keys to camelCase for LLM flexibility
+  const normalized = normalizeKeys(raw);
+  console.log("[ChatPulse PARSER] Normalized keys for validation");
+
+  const result = ReportSchema.safeParse(normalized);
   if (!result.success) {
     for (const issue of result.error.issues) {
       console.warn("[ChatPulse PARSER] Validation issue:", issue.path.join("."), issue.message);
@@ -207,28 +216,104 @@ export function validateAndParseReport(
   return report;
 }
 
+/**
+ * Recursively normalize object keys: handle both snake_case and camelCase
+ * Maps LLM outputs to expected schema format
+ */
+function normalizeKeys(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return undefined;
+  if (Array.isArray(obj)) return obj.map(normalizeKeys);
+  if (typeof obj !== "object") return obj;
+
+  const result: Record<string, unknown> = {};
+  // Map camelCase to snake_case for schema compatibility, and keep snake_case as-is
+  const keyMap: Record<string, string> = {
+    // Top-level mappings (camelCase -> snake_case)
+    reportMeta: "report_meta",
+    overallSentiment: "overall_sentiment",
+    engagementQuality: "engagement_quality",
+    topTopics: "top_topics",
+    brandMentions: "brand_mentions",
+    audienceSegments: "audience_segments",
+    // Nested mappings (camelCase -> snake_case)
+    generatedAt: "generated_at",
+    messagesAnalyzed: "messages_analyzed",
+    messagesSubstantive: "messages_substantive",
+    dominantLanguage: "dominant_language",
+    confidenceScore: "confidence_score",
+    activeChattersRatio: "active_chatters_ratio",
+    substantiveRatio: "substantive_ratio",
+    topContributors: "top_contributors",
+    messageCount: "message_count",
+    influenceScore: "influence_score",
+    topicTitle: "topic_title",
+    totalUniqueUsers: "total_unique_users",
+    keyUsernames: "key_usernames",
+    evidenceQuotes: "evidence_quotes",
+    detailedDescription: "detailed_description",
+    relatedTopics: "related_topics",
+    sampleMessages: "sample_messages",
+    brandName: "brand_name",
+    mentionsCount: "mentions_count",
+    sampleQuotes: "sample_quotes",
+    segmentName: "segment_name",
+    estimatedSize: "estimated_size",
+    expectedImpact: "expected_impact",
+    relatedTopicRank: "related_topic_rank",
+  };
+
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    // Convert camelCase to snake_case, or keep original key if already snake_case
+    const normalizedKey = keyMap[key] || key;
+    result[normalizedKey] = normalizeKeys(value);
+  }
+  return result;
+}
+
 export function extractJSON(text: string): unknown | null {
   console.log("[ChatPulse PARSER] extractJSON, input length:", text.length);
 
   let cleanText = text;
 
-  const thinkMatch = text.match(/<think>[\s\S]*?<\/think>/);
+  // Handle <think> blocks (some models use this format)
+  const thinkMatch = cleanText.match(/<think[\s\S]*?<\/think>/);
   if (thinkMatch) {
-    cleanText = text.slice(thinkMatch.index! + thinkMatch[0].length).trim();
+    cleanText = cleanText.slice(thinkMatch.index! + thinkMatch[0].length).trim();
     console.log("[ChatPulse PARSER] Stripped <think> block");
   }
 
+  // Also try <ltag> variant
+  const ltagMatch = cleanText.match(/<ltag[\s\S]*?<\/ltag>/);
+  if (ltagMatch) {
+    cleanText = cleanText.slice(ltagMatch.index! + ltagMatch[0].length).trim();
+    console.log("[ChatPulse PARSER] Stripped <ltag> block");
+  }
+
+  // Try markdown code block first
   const jsonMatch = cleanText.match(/```json\s*([\s\S]*?)```/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[1].trim());
       console.log("[ChatPulse PARSER] Extracted JSON from markdown code block");
       return parsed;
-    } catch {
-      console.warn("[ChatPulse PARSER] Failed to parse JSON from code block");
+    } catch (e) {
+      console.warn("[ChatPulse PARSER] Failed to parse JSON from code block:", e);
     }
   }
 
+  // Also try plain code block without language specifier
+  const plainCodeMatch = cleanText.match(/```\s*(\{[\s\S]*?\})\s*```/);
+  if (plainCodeMatch) {
+    try {
+      const parsed = JSON.parse(plainCodeMatch[1].trim());
+      console.log("[ChatPulse PARSER] Extracted JSON from plain code block");
+      return parsed;
+    } catch (e) {
+      console.warn("[ChatPulse PARSER] Failed to parse JSON from plain code block:", e);
+    }
+  }
+
+  // Find first JSON object
   const firstBrace = cleanText.indexOf("{");
   if (firstBrace === -1) {
     console.warn("[ChatPulse PARSER] No JSON found in response");
@@ -272,18 +357,22 @@ export function extractJSON(text: string): unknown | null {
 
   let jsonStr = cleanText.slice(firstBrace, endIdx + 1);
 
+  // Fix trailing commas
   jsonStr = jsonStr.replace(/,\s*([\]}])/g, "$1");
+
+  // Remove control characters except newlines/tabs
   jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, (ch) => {
     if (ch === "\n" || ch === "\r" || ch === "\t") return ch;
     return "";
   });
 
+  // Try to parse
   try {
     const parsed = JSON.parse(jsonStr);
     console.log("[ChatPulse PARSER] Extracted JSON via brace balancing");
     return parsed;
-  } catch {
-    console.warn("[ChatPulse PARSER] Failed to parse balanced JSON");
+  } catch (e) {
+    console.warn("[ChatPulse PARSER] Failed to parse balanced JSON:", e, "jsonStr preview:", jsonStr.substring(0, 200));
     return null;
   }
 }

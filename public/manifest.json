@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "ChatPulse",
   "version": "0.1.0",
-  "description": "Live Stream Chat Analysis & Audience Intelligence — Twitch MVP",
+  "description": "Live Stream Chat Analysis & Audience Intelligence — Twitch & Kick",
   "permissions": ["storage", "activeTab", "alarms", "windows"],
-  "host_permissions": ["*://*.twitch.tv/*"],
+  "host_permissions": ["*://*.twitch.tv/*", "*://*.kick.com/*"],
   "background": {
     "service_worker": "src/background/service-worker.ts",
     "type": "module"
@@ -19,6 +19,17 @@
     {
       "matches": ["*://*.twitch.tv/*"],
       "js": ["src/content/twitch-isolated.ts"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.kick.com/*"],
+      "js": ["src/content/kick-main.ts"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.kick.com/*"],
+      "js": ["src/content/kick-isolated.ts"],
       "run_at": "document_idle"
     }
   ],

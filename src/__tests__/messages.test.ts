@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseTwitchIRC, toUnifiedChatMessage } from "../shared/messages";
+import {
+  parseTwitchIRC,
+  toUnifiedChatMessage,
+  parseKickChat,
+  toUnifiedKickChatMessage,
+} from "../shared/messages";
 
 describe("parseTwitchIRC", () => {
   it("parses a valid Twitch PRIVMSG", () => {
@@ -60,6 +65,117 @@ describe("toUnifiedChatMessage", () => {
     expect(result.emotes).toEqual(["emote1"]);
     expect(result.bits).toBe(0);
     expect(result.platform).toBe("twitch");
+    expect(result.timestamp).toBe(1700000000000);
+  });
+});
+
+describe("parseKickChat", () => {
+  it("parses a valid Kick chat_message", () => {
+    const frame = JSON.stringify({
+      type: "chat_message",
+      data: {
+        id: "kick-msg-123",
+        message: {
+          text: "Hello Kick chat!",
+          emotes: [{ id: "emote1", name: "Pog" }],
+        },
+        sender: {
+          username: "KickUser",
+          displayName: "KickUser",
+          badges: [{ type: "subscriber" }],
+        },
+      },
+    });
+
+    const result = parseKickChat(frame);
+
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe("kick-msg-123");
+    expect(result!.username).toBe("kickuser");
+    expect(result!.displayName).toBe("KickUser");
+    expect(result!.message).toBe("Hello Kick chat!");
+    expect(result!.emotes).toContain("emote1");
+    expect(result!.badges).toContain("subscriber");
+  });
+
+  it("returns null for non-chat_message types", () => {
+    const frame = JSON.stringify({
+      type: "channel_handshake",
+      data: { message: { channelId: "123" } },
+    });
+    expect(parseKickChat(frame)).toBeNull();
+  });
+
+  it("returns null for invalid JSON", () => {
+    const frame = "not valid json";
+    expect(parseKickChat(frame)).toBeNull();
+  });
+
+  it("returns null for empty message text", () => {
+    const frame = JSON.stringify({
+      type: "chat_message",
+      data: {
+        id: "kick-msg-123",
+        message: { text: "" },
+        sender: { username: "KickUser", displayName: "KickUser" },
+      },
+    });
+    expect(parseKickChat(frame)).toBeNull();
+  });
+
+  it("handles missing optional fields gracefully", () => {
+    const frame = JSON.stringify({
+      type: "chat_message",
+      data: {
+        id: "kick-msg-456",
+        message: { text: "Simple message" },
+        sender: { username: "SimpleUser" },
+      },
+    });
+
+    const result = parseKickChat(frame);
+
+    expect(result).not.toBeNull();
+    expect(result!.username).toBe("simpleuser");
+    expect(result!.displayName).toBe("simpleuser");
+    expect(result!.badges).toEqual([]);
+    expect(result!.emotes).toEqual([]);
+  });
+
+  it("handles whitespace-only messages", () => {
+    const frame = JSON.stringify({
+      type: "chat_message",
+      data: {
+        id: "kick-msg-789",
+        message: { text: "   " },
+        sender: { username: "WhitespaceUser", displayName: "WhitespaceUser" },
+      },
+    });
+    expect(parseKickChat(frame)).toBeNull();
+  });
+});
+
+describe("toUnifiedKickChatMessage", () => {
+  it("converts parsed Kick chat to UnifiedChatMessage", () => {
+    const parsed = {
+      id: "kick-test-123",
+      username: "kickuser",
+      displayName: "KickUser",
+      message: "Hello Kick!",
+      badges: ["moderator"],
+      emotes: ["emote1"],
+    };
+
+    const result = toUnifiedKickChatMessage(parsed, 1700000000000);
+
+    expect(result.id).toBe("kick-test-123");
+    expect(result.username).toBe("kickuser");
+    expect(result.displayName).toBe("KickUser");
+    expect(result.message).toBe("Hello Kick!");
+    expect(result.badges).toEqual(["moderator"]);
+    expect(result.emotes).toEqual(["emote1"]);
+    expect(result.bits).toBe(0);
+    expect(result.platform).toBe("kick");
     expect(result.timestamp).toBe(1700000000000);
   });
 });

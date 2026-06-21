@@ -10,6 +10,15 @@ interface TwitchIRCMessage {
   bits: number;
 }
 
+interface KickChatMessage {
+  id: string;
+  username: string;
+  displayName: string;
+  message: string;
+  badges: string[];
+  emotes: string[];
+}
+
 let msgIdCounter = 0;
 
 const BADGE_MAP: Record<string, string> = {
@@ -113,5 +122,108 @@ export function toUnifiedChatMessage(
     emotes: parsed.emotes,
     bits: parsed.bits,
     platform: "twitch",
+  };
+}
+
+// Kick Platform Chat Parser
+
+interface KickWebSocketFrame {
+  type: string;
+  data?: KickChatData;
+}
+
+interface KickChatData {
+  id?: string;
+  message?: KickMessage;
+  sender?: KickSender;
+}
+
+interface KickMessage {
+  text?: string;
+  emotes?: KickEmote[];
+}
+
+interface KickEmote {
+  id?: string;
+  name?: string;
+}
+
+interface KickSender {
+  username?: string;
+  displayName?: string;
+  badges?: KickBadge[];
+}
+
+interface KickBadge {
+  id?: string;
+  type?: string;
+  text?: string;
+}
+
+/**
+ * Parse Kick chat messages from WebSocket JSON frames
+ * Kick uses structured JSON messages with chat_message type
+ */
+export function parseKickChat(rawFrame: string): KickChatMessage | null {
+  let parsed: KickWebSocketFrame;
+  try {
+    parsed = JSON.parse(rawFrame);
+  } catch {
+    console.log("[ChatPulse Kick] Invalid JSON frame, skipping");
+    return null;
+  }
+
+  // Check for chat message type
+  if (parsed.type !== "chat_message") {
+    return null;
+  }
+
+  const data = parsed.data;
+  if (!data?.message?.text) {
+    return null;
+  }
+
+  const username = data.sender?.username?.toLowerCase() || "unknown";
+  const displayName = data.sender?.displayName || username;
+  const message = data.message.text.trim();
+
+  if (message.length === 0) {
+    return null;
+  }
+
+  // Extract badges from sender
+  const badges: string[] = (data.sender?.badges || [])
+    .map((b) => b.type || b.text || "")
+    .filter((b) => b.length > 0);
+
+  // Extract emotes from message
+  const emotes: string[] = (data.message.emotes || [])
+    .map((e) => e.id || e.name || "")
+    .filter((e) => e.length > 0);
+
+  return {
+    id: data.id || `${username}-${Date.now()}-${++msgIdCounter}`,
+    username,
+    displayName,
+    message,
+    badges,
+    emotes,
+  };
+}
+
+export function toUnifiedKickChatMessage(
+  parsed: KickChatMessage,
+  timestamp: number
+): UnifiedChatMessage {
+  return {
+    id: parsed.id,
+    username: parsed.username,
+    displayName: parsed.displayName,
+    message: parsed.message,
+    timestamp,
+    badges: parsed.badges,
+    emotes: parsed.emotes,
+    bits: 0, // Kick doesn't have bits equivalent in the same way
+    platform: "kick",
   };
 }

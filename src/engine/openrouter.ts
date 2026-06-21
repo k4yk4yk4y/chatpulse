@@ -111,7 +111,7 @@ export async function analyzeChat(
   reportLanguage: string,
   maxTopics: number,
   topic?: string
-): Promise<{ report: ChatPulseReport | null; error?: string }> {
+): Promise<{ report: ChatPulseReport | null; error?: string; parsedResponse?: string }> {
   console.log("[ChatPulse ENGINE] analyzeChat called, messages:", messages.length, "language:", reportLanguage, "maxTopics:", maxTopics, "topic:", topic || "(none)");
 
   if (!apiKey) {
@@ -126,6 +126,8 @@ export async function analyzeChat(
 
   const models = [MODELS.DEFAULT, MODELS.FALLBACK];
   console.log("[ChatPulse ENGINE] Models to try:", models);
+
+  let lastResponseText: string | undefined;
 
   for (const model of models) {
     const contextWindow = CONTEXT_WINDOWS[model] || 131_072;
@@ -165,6 +167,7 @@ export async function analyzeChat(
     let response = await callOpenRouter(apiKey, model, systemPrompt, userPrompt);
 
     if (response) {
+      lastResponseText = response;
       console.log("[ChatPulse ENGINE] Response received, length:", response.length, "first 200 chars:", response.substring(0, 200));
       const parsed = extractJSON(response);
       console.log("[ChatPulse ENGINE] JSON extraction:", parsed ? "success" : "failed");
@@ -174,16 +177,18 @@ export async function analyzeChat(
           console.log("[ChatPulse ENGINE] Report validation passed");
           return { report };
         }
-        console.warn("[ChatPulse ENGINE] Report validation failed for", model);
+        console.warn("[ChatPulse ENGINE] Report validation failed - format issue with model", model);
+      } else {
+        console.warn("[ChatPulse ENGINE] No JSON found in response from", model);
       }
 
-      console.warn(`[ChatPulse ENGINE] First attempt for ${model} returned invalid JSON, retrying with few-shot...`);
+      console.warn(`[ChatPulse ENGINE] First attempt for ${model} returned invalid response, retrying with few-shot...`);
 
       const retrySystemPrompt = buildSystemPrompt(reportLanguage, true, topic);
       response = await callOpenRouter(apiKey, model, retrySystemPrompt, userPrompt);
 
       if (response) {
-        console.log("[ChatPulse ENGINE] Retry response received, length:", response.length);
+        console.log("[ChatPulse ENGINE] Retry response received, length:", response.length, "first 200 chars:", response.substring(0, 200));
         const parsed = extractJSON(response);
         if (parsed) {
           const report = validateAndParseReport(parsed, maxTopics);
@@ -191,8 +196,10 @@ export async function analyzeChat(
             console.log("[ChatPulse ENGINE] Retry succeeded for", model);
             return { report };
           }
+          console.warn("[ChatPulse ENGINE] Retry validation also failed - format issue with model", model);
+        } else {
+          console.warn("[ChatPulse ENGINE] No JSON found in retry response from", model);
         }
-        console.warn("[ChatPulse ENGINE] Retry also failed for", model);
       } else {
         console.warn("[ChatPulse ENGINE] Retry returned null for", model);
       }
@@ -208,9 +215,10 @@ export async function analyzeChat(
     }
   }
 
-  console.error("[ChatPulse ENGINE] All models exhausted");
+  console.error("[ChatPulse ENGINE] All models exhausted, no valid report generated");
   return {
     report: null,
-    error: "Both free AI models are temporarily unavailable. Try again in a minute, or export your raw chat data.",
+    error: "The AI models returned data in an unexpected format. You can still export the raw chat data and try again later.",
+    parsedResponse: lastResponseText,
   };
 }

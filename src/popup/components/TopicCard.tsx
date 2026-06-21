@@ -74,7 +74,7 @@ export function TopicCard({ topic }: TopicCardProps) {
 
       <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-500">
         <span>{topic.frequency} mentions</span>
-        <span>{topic.keyUsernames.length} users</span>
+        <span>{topic.totalUniqueUsers > 0 ? topic.totalUniqueUsers : topic.keyUsernames.length} users</span>
       </div>
 
       {topic.keyUsernames.length > 0 && (

@@ -9,6 +9,7 @@ import { History } from "./components/History";
 import { ExportPanel } from "./components/ExportPanel";
 import type { ChatPulseReport, UserSettings } from "../shared/types";
 import { getSettings, saveSettings } from "../shared/storage";
+import { detectPlatform } from "../shared/platform";
 
 type View = "main" | "settings" | "history";
 
@@ -92,14 +93,14 @@ export function App() {
   }, []);
 
   const handleStartCollection = useCallback(() => {
-    const twitchRegex = /^https?:\/\/(www\.)?twitch\.tv\/\w+\/?$/;
-    if (!twitchRegex.test(streamUrl)) {
-      console.warn("[ChatPulse POPUP] Invalid Twitch URL:", streamUrl);
-      setError("Please enter a valid Twitch URL (e.g., https://twitch.tv/xqc)");
+    const platform = detectPlatform(streamUrl);
+    if (!platform) {
+      console.warn("[ChatPulse POPUP] Invalid stream URL:", streamUrl);
+      setError("Please enter a valid Twitch or Kick URL (e.g., https://twitch.tv/xqc or https://kick.com/xqc)");
       return;
     }
 
-    console.log("[ChatPulse POPUP] Starting collection for:", streamUrl, "timeRange:", timeRange, "min");
+    console.log("[ChatPulse POPUP] Starting collection for:", streamUrl, "platform:", platform, "timeRange:", timeRange, "min");
     setError(null);
     setReport(null);
     setRawCsv(null);
@@ -109,12 +110,14 @@ export function App() {
     setEndTime(timeRange > 0 ? now + timeRange * 60 * 1000 : 0);
     setCollecting(true);
 
+    const channelName = streamUrl.split("/").pop() || "Unknown Stream";
+
     chrome.runtime.sendMessage({
       type: "START_COLLECTION",
       payload: {
-        title: streamUrl.split("/").pop() || "Unknown Stream",
+        title: channelName,
         category: "Just Chatting",
-        platform: "twitch",
+        platform,
         viewerCountApprox: 0,
         durationMonitored: timeRange,
       },
@@ -240,7 +243,7 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-[680px]">
+    <div className="flex flex-col w-[420px] h-[680px]">
       <header className="flex items-center justify-between px-4 py-3 bg-brand-600 text-white">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
@@ -303,6 +306,11 @@ export function App() {
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 <p>{error}</p>
+                {rawCsv && (
+                  <p className="mt-2 text-xs text-red-600">
+                    Raw chat data has been exported below. You can copy it for manual analysis.
+                  </p>
+                )}
                 {startTime > 0 && !collecting && (
                   <button
                     onClick={handleAnalyze}

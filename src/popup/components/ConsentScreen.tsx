@@ -4,7 +4,7 @@ interface ConsentScreenProps {
 
 export function ConsentScreen({ onAccept }: ConsentScreenProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-[680px] p-6 text-center">
+    <div className="flex flex-col items-center justify-center w-[420px] h-[680px] p-6 text-center">
       <div className="w-16 h-16 bg-brand-600 rounded-2xl flex items-center justify-center mb-6">
         <span className="text-white font-bold text-2xl">CP</span>
       </div>

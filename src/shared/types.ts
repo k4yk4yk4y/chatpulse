@@ -7,13 +7,13 @@ export interface UnifiedChatMessage {
   badges: string[];
   emotes: string[];
   bits: number;
-  platform: "twitch";
+  platform: "twitch" | "kick";
 }
 
 export interface StreamMetadata {
   title: string;
   category: string;
-  platform: "twitch";
+  platform: "twitch" | "kick";
   viewerCountApprox: number;
   durationMonitored: number;
 }
@@ -48,6 +48,7 @@ export interface ChatPulseReport {
     frequency: number;
     sentiment: "Negative" | "Neutral" | "Positive";
     severity: "Critical" | "High" | "Medium" | "Low";
+    totalUniqueUsers: number;
     keyUsernames: string[];
     evidenceQuotes: string[];
     detailedDescription: string;

@@ -40,9 +40,10 @@ restoreState().then((state) => {
 });
 
 chrome.runtime.onConnect.addListener((connection) => {
-  if (connection.name !== "chatpulse-content") return;
+  // Accept both Twitch and Kick content script connections
+  if (connection.name !== "chatpulse-content" && connection.name !== "chatpulse-kick-content") return;
 
-  console.log("[ChatPulse SW] Content script connected, id:", connection.sender?.tab?.id);
+  console.log("[ChatPulse SW] Content script connected, name:", connection.name, "id:", connection.sender?.tab?.id);
 
   connection.onMessage.addListener(async (msg: { type: string; payload: unknown }) => {
     switch (msg.type) {
@@ -120,6 +121,13 @@ chrome.runtime.onMessage.addListener(
         return true;
       }
 
+      case "GET_LAST_RESPONSE": {
+        chrome.storage.local.get(["lastAIResponse"], (data) => {
+          sendResponse({ lastResponse: data.lastAIResponse || null });
+        });
+        return true;
+      }
+
       case "GET_METADATA": {
         console.log("[ChatPulse SW] GET_METADATA");
         sendResponse({ metadata });
@@ -164,7 +172,7 @@ chrome.runtime.onMessage.addListener(
 async function handleAnalysis(payload: {
   startTime: number;
   endTime: number;
-}): Promise<{ report: ChatPulseReport | null; error?: string }> {
+}): Promise<{ report: ChatPulseReport | null; error?: string; parsedResponse?: string }> {
   console.log("[ChatPulse SW] handleAnalysis start:", { startTime: payload.startTime, endTime: payload.endTime });
   const settings = await getSettings();
   console.log("[ChatPulse SW] Settings loaded, hasApiKey:", !!settings.apiKey);
@@ -172,7 +180,10 @@ async function handleAnalysis(payload: {
   console.log("[ChatPulse SW] Messages in range:", messages.length);
 
   const historyId = `analysis-${Date.now()}`;
-  const streamUrl = `https://twitch.tv/${metadata.title}`;
+  // Build platform-aware stream URL
+  const streamUrl = metadata.platform === "kick"
+    ? `https://kick.com/${metadata.title}`
+    : `https://twitch.tv/${metadata.title}`;
 
   await saveHistory({
     id: historyId,
@@ -189,6 +200,11 @@ async function handleAnalysis(payload: {
 
   const result = await analyzeChat(settings.apiKey, metadata, messages, settings.reportLanguage, settings.maxTopics, settings.topic);
   console.log("[ChatPulse SW] analyzeChat result:", result.report ? "success" : result.error);
+
+  // Store last response for debugging
+  if (result.parsedResponse) {
+    chrome.storage.local.set({ lastAIResponse: result.parsedResponse });
+  }
 
   await updateHistoryEntry({
     id: historyId,
@@ -207,6 +223,7 @@ async function handleAnalysis(payload: {
 async function handleRetryAnalysis(historyId: string): Promise<{
   report: ChatPulseReport | null;
   error?: string;
+  parsedResponse?: string;
 }> {
   const entry = await getHistoryEntry(historyId);
   if (!entry) {
@@ -234,7 +251,7 @@ async function handleRetryAnalysis(historyId: string): Promise<{
   const retriedMetadata: StreamMetadata = {
     title: entry.streamTitle,
     category: "Just Chatting",
-    platform: "twitch",
+    platform: metadata.platform,
     viewerCountApprox: 0,
     durationMonitored: 0,
   };
