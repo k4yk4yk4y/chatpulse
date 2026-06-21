@@ -70,6 +70,83 @@ const FEW_SHOT_EXAMPLES = `
   ]
 }
 
+## FULL OUTPUT EXAMPLE (multiple topics with recommendations for each)
+{
+  "report_meta": {
+    "generated_at": "2025-01-15T14:30:00Z",
+    "messages_analyzed": 523,
+    "messages_substantive": 87,
+    "dominant_language": "en",
+    "confidence_score": 78
+  },
+  "overall_sentiment": {
+    "score": -15,
+    "label": "Negative",
+    "summary": "Chat is dominated by frustration about recent changes."
+  },
+  "engagement_quality": {
+    "score": 62,
+    "active_chatters_ratio": 0.34,
+    "substantive_ratio": 0.17,
+    "top_contributors": []
+  },
+  "top_topics": [
+    {
+      "rank": 1,
+      "topic_title": "Login broken after update",
+      "category": "Bug Report",
+      "frequency": 45,
+      "total_unique_users": 20,
+      "sentiment": "Negative",
+      "severity": "Critical",
+      "key_usernames": ["user1", "user2"],
+      "evidence_quotes": ["Can't login since the update"],
+      "detailed_description": "Multiple users report login failures after the latest patch.",
+      "related_topics": [],
+      "sample_messages": [{"username": "user1", "message": "Can't login since the update", "timestamp": "2025-01-15T14:20:00Z"}]
+    },
+    {
+      "rank": 2,
+      "topic_title": "New UI looks great",
+      "category": "Praise",
+      "frequency": 30,
+      "total_unique_users": 15,
+      "sentiment": "Positive",
+      "severity": "Low",
+      "key_usernames": ["user3", "user4"],
+      "evidence_quotes": ["Love the new design"],
+      "detailed_description": "Users appreciate the refreshed interface.",
+      "related_topics": [],
+      "sample_messages": [{"username": "user3", "message": "Love the new design", "timestamp": "2025-01-15T14:21:00Z"}]
+    }
+  ],
+  "brand_mentions": [],
+  "audience_segments": [],
+  "recommendations": [
+    {
+      "priority": "Critical",
+      "related_topic_rank": 1,
+      "audience": "Users unable to login after update",
+      "action": "Hotfix the authentication regression immediately",
+      "expected_impact": "Restores access for affected users and prevents churn"
+    },
+    {
+      "priority": "High",
+      "related_topic_rank": 1,
+      "audience": "Users affected by login failure",
+      "action": "Post a status page update acknowledging the issue and ETA",
+      "expected_impact": "Reduces frustration and support tickets"
+    },
+    {
+      "priority": "Low",
+      "related_topic_rank": 2,
+      "audience": "Users who praised the new UI",
+      "action": "Share a design blog post explaining the changes",
+      "expected_impact": "Amplifies positive sentiment and user engagement"
+    }
+  ]
+}
+
 ## ENUM VALUES — USE EXACTLY THESE STRINGS
 - category: "Complaint" | "Question" | "Suggestion" | "Praise" | "Bug Report" | "Comparison" | "Other"
   - NOTE: Use "Bug Report" (two words), NOT "Bug"
@@ -189,7 +266,7 @@ Respond ONLY with a valid JSON object matching this schema. No markdown, no expl
       "expected_impact": "string (1 sentence)"
     }
   ]
-  NOTE: Generate 2-4 recommendations per each high-severity topic (Critical/High). Each recommendation should address a different aspect of the same problem. For Medium/Low topics, 1-2 recommendations each. Group recommendations by their related_topic_rank. General recommendations (related_topic_rank=0) are optional, only if there's a cross-cutting concern. The problem_explanation should provide context about WHY this action is needed — not just restate the topic title.
+  CRITICAL: Generate at least 1 recommendation for EVERY topic in top_topics — no topic may be left without a recommendation. For high-severity topics (Critical/High), generate 2-4 recommendations addressing different aspects. For Medium severity, 1-2 recommendations. For Low severity, exactly 1 recommendation. Group recommendations by their related_topic_rank. General recommendations (related_topic_rank=0) are optional, only if there's a cross-cutting concern. The audience field should explain WHY this action is needed — not just restate the topic title.
 }`;
 
   if (includeFewShot) {

@@ -2,12 +2,14 @@ import { useState } from "react";
 import type { ChatPulseReport } from "../../shared/types";
 
 type Topic = ChatPulseReport["topTopics"][number];
+type Recommendation = ChatPulseReport["recommendations"][number];
 
 interface TopicCardProps {
   topic: Topic;
+  recommendations?: Recommendation[];
 }
 
-export function TopicCard({ topic }: TopicCardProps) {
+export function TopicCard({ topic, recommendations = [] }: TopicCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const sentimentBadge = (sentiment: string) => {
@@ -117,6 +119,31 @@ export function TopicCard({ topic }: TopicCardProps) {
             </div>
           )}
         </>
+      )}
+
+      {recommendations.length > 0 && (
+        <div className="mt-2 border-t border-gray-100 pt-2 space-y-1.5">
+          {recommendations.map((rec, i) => (
+            <div key={i} className="bg-blue-50 border border-blue-200 rounded p-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                    rec.priority === "Critical"
+                      ? "bg-red-100 text-red-700"
+                      : rec.priority === "High"
+                        ? "bg-orange-100 text-orange-700"
+                        : rec.priority === "Medium"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {rec.priority}
+                </span>
+              </div>
+              <p className="text-xs font-medium text-gray-800">{rec.action}</p>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

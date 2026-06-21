@@ -62,7 +62,11 @@ export function ReportViewer({ report }: ReportViewerProps) {
         </h3>
         <div className="space-y-2">
           {(expanded ? report.topTopics : report.topTopics.slice(0, 3)).map((topic) => (
-            <TopicCard key={topic.rank} topic={topic} />
+            <TopicCard
+              key={topic.rank}
+              topic={topic}
+              recommendations={report.recommendations.filter((r) => r.relatedTopicRank === topic.rank)}
+            />
           ))}
         </div>
         {report.topTopics.length > 3 && (
@@ -75,60 +79,32 @@ export function ReportViewer({ report }: ReportViewerProps) {
         )}
       </div>
 
-      {report.recommendations.length > 0 && (
+      {report.recommendations.filter((r) => r.relatedTopicRank === 0).length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Recommendations</h3>
-          <div className="space-y-3">
-            {Object.entries(
-              report.recommendations.reduce(
-                (acc, rec) => {
-                  const key = rec.relatedTopicRank;
-                  if (!acc[key]) acc[key] = [];
-                  acc[key].push(rec);
-                  return acc;
-                },
-                {} as Record<number, typeof report.recommendations>
-              )
-            )
-              .sort(([a], [b]) => Number(a) - Number(b))
-              .map(([topicRank, recs]) => {
-                const topic = report.topTopics.find((t) => t.rank === Number(topicRank));
-                return (
-                  <div key={topicRank} className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="px-2.5 py-1.5 bg-gray-50 border-b border-gray-200">
-                      <span className="text-xs font-medium text-gray-700">
-                        {topic
-                          ? `${topic.topicTitle}`
-                          : topicRank === "0"
-                            ? "General"
-                            : `Topic #${topicRank}`}
-                      </span>
-                    </div>
-                    <div className="p-2.5 space-y-2">
-                      {recs.map((rec, i) => (
-                        <div key={i} className="bg-blue-50 border border-blue-200 rounded p-2">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                rec.priority === "Critical"
-                                  ? "bg-red-100 text-red-700"
-                                  : rec.priority === "High"
-                                    ? "bg-orange-100 text-orange-700"
-                                    : rec.priority === "Medium"
-                                      ? "bg-amber-100 text-amber-700"
-                                      : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {rec.priority}
-                            </span>
-                          </div>
-                          <p className="text-xs font-medium text-gray-800">{rec.action}</p>
-                        </div>
-                      ))}
-                    </div>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">General Recommendations</h3>
+          <div className="space-y-2">
+            {report.recommendations
+              .filter((r) => r.relatedTopicRank === 0)
+              .map((rec, i) => (
+                <div key={i} className="bg-blue-50 border border-blue-200 rounded p-2.5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        rec.priority === "Critical"
+                          ? "bg-red-100 text-red-700"
+                          : rec.priority === "High"
+                            ? "bg-orange-100 text-orange-700"
+                            : rec.priority === "Medium"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {rec.priority}
+                    </span>
                   </div>
-                );
-              })}
+                  <p className="text-xs font-medium text-gray-800">{rec.action}</p>
+                </div>
+              ))}
           </div>
         </div>
       )}
