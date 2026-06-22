@@ -145,7 +145,7 @@ Even though ChatPulse only uses free models, OpenRouter recommends setting a saf
 **Linux / macOS:**
 
 ```bash
-git clone https://github.com/your-username/ChatPulse.git
+git clone https://github.com/k4yk4yk4y/chatpulse.git
 cd ChatPulse
 npm install
 npm run build
@@ -154,7 +154,7 @@ npm run build
 **Windows:**
 
 ```cmd
-git clone https://github.com/your-username/ChatPulse.git
+git clone https://github.com/k4yk4yk4y/chatpulse.git
 cd ChatPulse
 npm install
 npm run build
