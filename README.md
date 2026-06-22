@@ -140,51 +140,64 @@ Even though ChatPulse only uses free models, OpenRouter recommends setting a saf
 
 ## Installation
 
-### Linux / macOS
+### Step 1 — Build the Extension
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/ChatPulse.git
-   cd ChatPulse
-   ```
+**Linux / macOS:**
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/your-username/ChatPulse.git
+cd ChatPulse
+npm install
+npm run build
+```
 
-3. Build the extension:
-   ```bash
-   npm run build
-   ```
+**Windows:**
 
-4. Open Chrome → `chrome://extensions` → Enable **Developer mode**
+```cmd
+git clone https://github.com/your-username/ChatPulse.git
+cd ChatPulse
+npm install
+npm run build
+```
 
-5. Click **Load unpacked** → select the `dist/` folder from the project directory
+> If Git is not installed, download it from [https://git-scm.com/download/win](https://git-scm.com/download/win) or clone the ZIP from GitHub.
 
-### Windows
+### Step 2 — Enable Developer Mode in Chrome
 
-1. Clone the repository:
-   ```cmd
-   git clone https://github.com/your-username/ChatPulse.git
-   cd ChatPulse
-   ```
-   > If Git is not installed, download it from [https://git-scm.com/download/win](https://git-scm.com/download/win) or clone the ZIP from GitHub.
+1. Open Chrome (or Edge/Brave) and navigate to `chrome://extensions`
+2. In the top-right corner, toggle **Developer mode** ON
 
-2. Install dependencies:
-   ```cmd
-   npm install
-   ```
+   ![Developer mode toggle location: top-right corner of chrome://extensions page](https://img.shields.io/badge/Developer_mode-ON-blue?style=for-the-badge)
 
-3. Build the extension:
-   ```cmd
-   npm run build
-   ```
+3. You should now see additional buttons appear: **Load unpacked**, **Pack extension**, and **Update**
 
-4. Open Chrome → `chrome://extensions` → Enable **Developer mode**
+### Step 3 — Load the Extension
 
-5. Click **Load unpacked** → select the `dist/` folder from the project directory
-   > To find the folder path easily: open File Explorer, navigate to the `ChatPulse\dist` folder, click the address bar, and copy the full path (e.g. `C:\Users\You\ChatPulse\dist`).
+1. Click the **Load unpacked** button (top-left area)
+2. In the file dialog, navigate to the `dist/` folder inside your ChatPulse project directory
+   - **Linux/macOS:** `~/ChatPulse/dist`
+   - **Windows:** `C:\Users\<YourName>\ChatPulse\dist`
+     > Tip: open File Explorer, go to `ChatPulse\dist`, click the address bar, and copy the full path
+3. Select the `dist/` folder and click **Select** (or **Open**)
+
+The ChatPulse extension icon should now appear in your browser toolbar.
+
+### Loading in Edge / Brave
+
+The process is identical — both support Chrome extensions:
+
+- **Edge:** Navigate to `edge://extensions` → Enable **Developer mode** → **Load unpacked** → select `dist/`
+- **Brave:** Navigate to `brave://extensions` → Enable **Developer mode** → **Load unpacked** → select `dist/`
+
+### Updating After Code Changes
+
+After pulling new changes or making edits:
+
+```bash
+npm run build
+```
+
+Then go back to `chrome://extensions` and click the **reload** icon (circular arrow) on the ChatPulse extension card.
 
 ## Usage
 
